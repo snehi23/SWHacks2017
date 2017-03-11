@@ -2,9 +2,9 @@ var aws = require("aws-lib");
 
 var xml2js=require("xml2js");
 
-var accessKeyId='AKIAJFARVOS5FHAKPWAQ';
+var accessKeyId='<Your accessKey>';
 
-var secretAccessKey='A5lnp+YJ0eO06iCeReynWTHmAirTJO4RJPSKZJ8p';
+var secretAccessKey='<your Secret key>';
 
 var associateTag='technocrat';
 
