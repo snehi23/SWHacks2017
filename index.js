@@ -38,13 +38,19 @@ exports.handler = (event, context, callback) => {
     options.Keywords = Pvalue;
     options.SearchIndex = updatedCValue;
 
-    function sendMin(min) {
+    function sendMin(min, isError) {
+
+    	var responseText = "Sorry we could not find product "+ Pvalue + " on marketplace. Please try again.";
+
+    	if(isError == false)
+    	 responseText = "The best price for "+ Pvalue +" is "+min;
+
 					var response = {
 				        "version": "1.0",
 				        "response": {
 				            "outputSpeech": {
 				            "type": "PlainText",
-				            "text": "The best price for "+ Pvalue +" is "+min
+				            "text": responseText
 				        }
 					  }
 				  	}
@@ -61,6 +67,12 @@ exports.handler = (event, context, callback) => {
     		console.log(JSON.stringify(result.Items));
 
 		    var items=result.Items.Item;
+
+		    if(items == undefined) {
+		    	sendMin(0,true);
+		    	return;
+		    }
+
 
 		    var len=items.length;
 		    
@@ -108,7 +120,8 @@ exports.handler = (event, context, callback) => {
 				   	  console.log("FormattedPrice:"+lowest.FormattedPrice);
 
 				   	  if(minObj.counter==0){
-							sendMin(minObj.FormattedPrice);				   	  	
+
+							sendMin(minObj.FormattedPrice, false);				   	  	
 				   	  }
 
 			   	  });
