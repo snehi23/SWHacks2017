@@ -1,93 +1,154 @@
+
+
 exports.handler = (event, context, callback) => {
 
-	var str = JSON.stringify(event);
+	var aws = require("aws-lib");
 
-    var request = event.request;
-    var intent = request.intent;
-    var slots = intent.slots;
-    
-    var Categories = slots.Categories;
-    var Cvalue = Categories.value;
-    
-    var Product = slots.Product;
-    var Pvalue = Product.value;
+	var eventStr = JSON.stringify(event);
 
-    var aws = require("aws-lib");
-
-	var accessKeyId='';
-
-	var secretAccessKey='';
-
-	var associateTag='';
-
-	var prodAdv = aws.createProdAdvClient(accessKeyId, secretAccessKey, associateTag);
-
-	var options = {SearchIndex: "Electronics", Keywords: "Samsung Galaxy Tab 3"}
+	//console.log(eventStr);
 
 	var asinIds=[];
 
-	if(Cvalue==undefined)
-		Cvalue="All";
+	var prodAndCategoryObj = {
+		"prodValue" : null, 
+		"catValue" : null,
+		"printValues": function() {
+			console.log("Product Value is "+ this.prodValue);
+			console.log("Categories Value is "+ this.catValue);
+		}
+	};
 
-    console.log('Product Name : '+Pvalue + ' in Category '+ Cvalue);
+	var getProductAndCategoryValue = function(event) {
 
-    var updatedCValue = Cvalue.charAt(0).toUpperCase() + Cvalue.slice(1);
+		if(event.request !== undefined) {
+			var request = event.request;
+				if(request.intent !== undefined) {
+					var intent = request.intent;
+						if(intent.slots !== undefined) {
+							var slots = intent.slots;
+						}
+						else {
+							return;
+						}	
+				} else {
 
-    console.log('Updated Category Name : '+updatedCValue);
+					return;
+				}
+		} else {
 
-    options.Keywords = Pvalue;
-    options.SearchIndex = updatedCValue;
+			return;
+		}
 
-    function sendMin(min, isError) {
+		if(slots === undefined) {
+			return;
+		} else {
 
-    	var responseText = "Sorry we could not find product "+ Pvalue + " on marketplace. Please try again.";
+			var Categories = slots.Categories;
 
-    	if(isError == false)
-    	 responseText = "The best price for "+ Pvalue +" is "+min;
+			prodAndCategoryObj.catValue = Categories.value;
 
-					var response = {
+			var Product = slots.Product;
+
+			prodAndCategoryObj.prodValue = Product.value;
+
+		}
+
+	};
+
+
+	var responseObj = {
 				        "version": "1.0",
 				        "response": {
 				            "outputSpeech": {
 				            "type": "PlainText",
-				            "text": responseText
+				            "text": ""
 				        }
 					  }
-				  	}
+				  	};
 
-		console.log(JSON.stringify(response));  
+	getProductAndCategoryValue(event);
 
-		callback(null, response);				 	
+	console.log(" Product and Categories object is : "+JSON.stringify(prodAndCategoryObj));
+
+   	var authObj = {
+   		"accessKeyId" : "",
+   		"secretAccessKey" : "",
+   		"associateTag" : ""
+   	};
+
+	var prodAdvAPI = aws.createProdAdvClient(authObj.accessKeyId, authObj.secretAccessKey, authObj.associateTag);
+
+	if(prodAndCategoryObj.catValue ===  undefined || prodAndCategoryObj.catValue === null) {
+		prodAndCategoryObj.catValue = "All";
+	}
+
+    console.log('Category Values are : '+ prodAndCategoryObj.printValues());
+
+    prodAndCategoryObj.catValue = prodAndCategoryObj.catValue.charAt(0).toUpperCase() + prodAndCategoryObj.catValue.slice(1);
+
+    console.log('Updated Values are : '+ prodAndCategoryObj.printValues());
+
+    function sendMin(min, isError) {
+
+    	var responseText;
+
+    	if(prodAndCategoryObj.prodValue === undefined || prodAndCategoryObj.catValue === null) {
+
+    		responseText = "Sorry we could not find product on marketplace. Please try again.";
+
+    	} else {
+
+    		responseText = "Sorry we could not find product "+ prodAndCategoryObj.prodValue + " on marketplace. Please try again.";
+    	}
+
+    	if(isError === false) {
+    	 	responseText = "The best price for "+ prodAndCategoryObj.prodValue +" is "+min;
+    	}
+
+		responseObj.response.outputSpeech.text = responseText;	
+
+		console.log("Response Text is : " + JSON.stringify(responseObj));  
+
+		callback(null, responseObj);				 	
 
 	}
 
-    prodAdv.call("ItemSearch", options, function(err, result) {
+	var options = {};
 
+	options.Keywords = prodAndCategoryObj.prodValue;
+    options.SearchIndex = prodAndCategoryObj.catValue;
 
-    		console.log(JSON.stringify(result.Items));
+    prodAdvAPI.call("ItemSearch", options, function(err, result) {
 
-		    var items=result.Items.Item;
+    		//console.log("Item Search Result: "+ JSON.stringify(result.Items));
 
-		    if(items == undefined) {
-		    	sendMin(0,true);
-		    	return;
-		    }
+    		var items=[];
 
+    		if(result.Items.Item !== undefined && result.Items.Item.length > 0)	{ 
 
-		    var len=items.length;
+		    	items = result.Items.Item;
+
+		    } else {
+
+		    	sendMin(0, true);
+		    	return;	
+
+		    }	
+
+		    items.forEach(function(item, index, Array) {
+		    	asinIds.push(item.ASIN);	
+		    });
 		    
-		    for(var i=0;i<3;i++){
-		    	asinIds.push(items[i].ASIN);
-		    	console.log(asinIds[i]);
-		    }
-		    var len=asinIds.length;
-			options={};
+		    var options = {};
+
 			options.ResponseGroup="Offers";
 			options.IdType="ASIN";
+
 			var asinToAbsolutePrice=[];
 			var asinToFormattedPrice=[];
 
-			 var minObj={};
+			var minObj={};
 
 			 minObj.min=Infinity;
 			 minObj.counter=asinIds.length; 
@@ -96,7 +157,7 @@ exports.handler = (event, context, callback) => {
 			   options.ItemId=asinIds[i];
 			   var asin=asinIds[i];
 			   
-			   prodAdv.call("ItemLookup", options, function(err,result){
+			   prodAdvAPI.call("ItemLookup", options, function(err,result){
 
 			   	  var lowest=result.Items.Item.OfferSummary.LowestNewPrice;
 			   	  if(lowest==undefined){
@@ -112,12 +173,11 @@ exports.handler = (event, context, callback) => {
 				   	  	minObj.min = absolutePrice;
 				   	  	minObj.FormattedPrice=lowest.FormattedPrice;
 				  }
-				   
-				      //console.log("Minimum:"+minObj.min);	  
+				     
 				   	  asinToAbsolutePrice[asin]=Number(lowest.Amount);
-				   	  console.log("ASIN:"+asin);
-				   	  console.log("Absolute Price:"+lowest.Amount);
-				   	  console.log("FormattedPrice:"+lowest.FormattedPrice);
+				   	  //console.log("ASIN:"+asin);
+				   	  //console.log("Absolute Price:"+lowest.Amount);
+				   	  //console.log("FormattedPrice:"+lowest.FormattedPrice);
 
 				   	  if(minObj.counter==0){
 
@@ -133,6 +193,9 @@ exports.handler = (event, context, callback) => {
 
 
 };
+
+
+
 
 
 
