@@ -71,13 +71,7 @@ exports.handler = (event, context, callback) => {
 
 	console.log(" Product and Categories object is : "+JSON.stringify(prodAndCategoryObj));
 
-   	var authObj = {
-   		"accessKeyId" : "",
-   		"secretAccessKey" : "",
-   		"associateTag" : ""
-   	};
-
-	var prodAdvAPI = aws.createProdAdvClient(authObj.accessKeyId, authObj.secretAccessKey, authObj.associateTag);
+	var prodAdvAPI = aws.createProdAdvClient(process.env.accessKeyId, process.env.secretAccessKey, process.env.associateTag);
 
 	if(prodAndCategoryObj.catValue ===  undefined || prodAndCategoryObj.catValue === null) {
 		prodAndCategoryObj.catValue = "All";
